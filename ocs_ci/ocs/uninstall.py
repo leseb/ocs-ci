@@ -88,7 +88,6 @@ def uninstall_lso():
                           namespace=constants.LOCAL_STORAGE_NAMESPACE
                           )
     log.info("deleting local volume PVs")
-    log.info(pv_obj_list.get().get('items'))
     for pv in pv_obj_list.get().get('items'):
         log.info(f"deleting pv {pv.get('metadata').get('name')}")
         pv_obj_list.delete(resource_name=pv.get('metadata').get('name'))
@@ -101,6 +100,7 @@ def uninstall_lso():
     disk_list_str = ""
     for device in device_list:
         disk_list_str = disk_list_str + f" {device}"
+    disk_list_str = f"DISKS=\"{disk_list_str}\""
     log.info(f"the disk list is {disk_list_str}")
 
     sgd_command = "for disk in $DISKS; do sgdisk --zap-all $disk;done"
