@@ -61,32 +61,49 @@ def uninstall_lso():
 
     """
     ocp_obj = ocp.OCP()
-    storage_cluster = ocp.OCP(kind=constants.STORAGECLUSTER,
-                              resource_name=constants.DEFAULT_CLUSTERNAME,
-                              namespace='openshift-storage')
+    storage_cluster = (
+        ocp.OCP(
+            kind=constants.STORAGECLUSTER,
+            resource_name=constants.DEFAULT_CLUSTERNAME,
+            namespace='openshift-storage'
+        )
+    )
 
-    sc_name = storage_cluster.get().get('spec').get(
-        'storageDeviceSets')[0].get('dataPVCTemplate').get('spec').get('storageClassName')
-    sc_obj = ocp.OCP(kind=constants.STORAGECLASS,
-                     resource_name=sc_name,
-                     namespace=constants.LOCAL_STORAGE_NAMESPACE
-                     )
+    sc_name = (
+        storage_cluster.get().get('spec').get('storageDeviceSets')[0]
+        .get('dataPVCTemplate').get('spec').get('storageClassName')
+    )
+
+    sc_obj = (
+        ocp.OCP(
+            kind=constants.STORAGECLASS,
+            resource_name=sc_name,
+            namespace=constants.LOCAL_STORAGE_NAMESPACE
+        )
+    )
 
     lv_name = sc_obj.get().get('metadata').get('labels').get('local.storage.openshift.io/owner-name')
-    lv_obj = ocp.OCP(kind=constants.LOCAL_VOLUME,
-                     resource_name=lv_name,
-                     namespace=constants.LOCAL_STORAGE_NAMESPACE
-                     )
+    lv_obj = (
+        ocp.OCP(
+            kind=constants.LOCAL_VOLUME,
+            resource_name=lv_name,
+            namespace=constants.LOCAL_STORAGE_NAMESPACE
+        )
+    )
 
     log.info(f"storage class: {sc_name}  local volume:{lv_name}")
 
     device_list = lv_obj.get().get('spec').get('storageClassDevices')[0].get('devicePaths')
     storage_node_list = get_labeled_nodes(constants.OPERATOR_NODE_LABEL)
 
-    pv_obj_list = ocp.OCP(kind=constants.PV,
-                          selector=f'storage.openshift.com/local-volume-owner-name={lv_name}',
-                          namespace=constants.LOCAL_STORAGE_NAMESPACE
-                          )
+    pv_obj_list = (
+        ocp.OCP(
+            kind=constants.PV,
+            selector=f'storage.openshift.com/local-volume-owner-name={lv_name}',
+            namespace=constants.LOCAL_STORAGE_NAMESPACE
+        )
+    )
+
     log.info("deleting local volume PVs")
     for pv in pv_obj_list.get().get('items'):
         log.info(f"deleting pv {pv.get('metadata').get('name')}")
