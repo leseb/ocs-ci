@@ -40,16 +40,22 @@ def remove_ocp_registry_from_ocs(platform):
     image_registry_obj = ocp.OCP(
         kind=constants.CONFIG, namespace=constants.OPENSHIFT_IMAGE_REGISTRY_NAMESPACE
     )
-    param_cmd = None
+    param_cmd1 = None
+    param_cmd2 = None
     if platform.lower() == constants.AWS_PLATFORM:
-        param_cmd = '[{"op": "remove", "path": "/spec/storage"}]'
+        param_cmd1 = '[{"op": "remove", "path": "/spec/storage"}]'
+        param_cmd2 = '[{"op": "remove", "path": "/status/generations/storage"}]'
 
     elif platform.lower() == constants.VSPHERE_PLATFORM:
-        param_cmd = '[{"op": "replace", "path": "/spec/storage", "value": {"emptyDir": "{}"}}]'
+        param_cmd1 = '[{"op": "replace", "path": "/spec/storage", "value": {"emptyDir": "{}"}}]'
+        param_cmd2 = '[{"op": "replace", "path": "/status/generations/storage", "value": {"emptyDir": "{}"}}]'
 
-    if param_cmd:
+    if param_cmd1:
         image_registry_obj.patch(
-            resource_name=constants.IMAGE_REGISTRY_RESOURCE_NAME, params=param_cmd, format_type='json'
+            resource_name=constants.IMAGE_REGISTRY_RESOURCE_NAME, params=param_cmd1, format_type='json'
+        )
+        image_registry_obj.patch(
+            resource_name=constants.IMAGE_REGISTRY_RESOURCE_NAME, params=param_cmd2, format_type='json'
         )
     else:
         log.info("platform registry not supported")
@@ -70,8 +76,8 @@ def uninstall_lso():
     )
 
     sc_name = (
-        storage_cluster.get().get('spec').get('storageDeviceSets')[0]
-        .get('dataPVCTemplate').get('spec').get('storageClassName')
+        storage_cluster.get().get('spec').get('storageDeviceSets')[0].get(
+            'dataPVCTemplate').get('spec').get('storageClassName')
     )
 
     sc_obj = (
@@ -196,10 +202,6 @@ def uninstall_ocs():
         )
         clusterlogging_obj.delete(resource_name='instance')
 
-    log.info("checking local storage")
-    if check_local_volume():
-        "local volume was found. removing from cluster"
-        uninstall_lso()
     log.info("deleting pvcs")
     for pvc in pvc_to_delete:
         log.info(f"deleting pvc: {pvc.name}")
@@ -209,6 +211,19 @@ def uninstall_ocs():
     for pod in pods_to_delete:
         log.info(f"deleting pod {pod.name}")
         pod.delete()
+
+    log.info("checking local storage")  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    if check_local_volume():
+        "local volume was found. removing from cluster"
+        uninstall_lso()
+
+    log.info("deleting storageCluster object")
+    storage_cluster = ocp.OCP(
+        kind=constants.STORAGECLUSTER,
+        resource_name=constants.DEFAULT_CLUSTERNAME,
+        namespace='openshift-storage'
+    )
+    storage_cluster.delete(resource_name=constants.DEFAULT_CLUSTERNAME)
 
     log.info("removing rook directory from nodes")
     nodes_list = get_labeled_nodes(constants.OPERATOR_NODE_LABEL)
@@ -228,10 +243,6 @@ def uninstall_ocs():
         node_obj = ocp.OCP(kind=constants.NODE, resource_name=node)
         node_obj.add_label(resource_name=node, label=constants.OPERATOR_NODE_LABEL[:-3] + '-')
         node_obj.add_label(resource_name=node, label=constants.TOPOLOGY_ROOK_LABEL + '-')
-
-    log.info("deleting storageCluster object")
-    storage_cluster = ocp.OCP(kind=constants.STORAGECLUSTER, resource_name=constants.DEFAULT_CLUSTERNAME)
-    storage_cluster.delete(resource_name=constants.DEFAULT_CLUSTERNAME)
 
     log.info("removing CRDs")
     crd_list = ['backingstores.noobaa.io', 'bucketclasses.noobaa.io', 'cephblockpools.ceph.rook.io',
